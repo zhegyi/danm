@@ -51,14 +51,14 @@ func getSriovCniConfig(netInfo *danmtypes.DanmNet, ipamOptions danmtypes.IpamCon
     IfName: ep.Spec.Iface.Name,
     L2Mode: true,
     Vlan:   vlanid,
-    Dpdk:   DpdkOption{},
+    Dpdk:   nil,
     Ipam:   ipamOptions,
   }
   if ipamOptions.Ip != "" {
     sriovConfig.L2Mode = false
   }
   if netInfo.Spec.Options.Dpdk {
-    sriovConfig.Dpdk = DpdkOption {
+    sriovConfig.Dpdk = &DpdkOption {
       NicDriver: dpdkNicDriver,
       DpdkDriver: dpdkDriver,
       DpdkTool: dpdkTool,
