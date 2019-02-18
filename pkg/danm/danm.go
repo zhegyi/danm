@@ -24,6 +24,7 @@ import (
   "github.com/nokia/danm/pkg/ipam"
   "github.com/nokia/danm/pkg/cnidel"
   "github.com/nokia/danm/pkg/syncher"
+  "github.com/intel/multus-cni/checkpoint"
 )
 
 var (
@@ -136,6 +137,18 @@ func extractCniArgs(args *skel.CmdArgs) (*cniArgs,error) {
                      args.StdinData,
                      nil,
                     }
+  checkpoint, err := checkpoint.GetCheckpoint()
+  if err != nil {
+    return  &cmdArgs,errors.New("Kubelet checkpoint file could not be accessed because:" + err.Error())
+  }
+  podIDStr := "aaaaa"
+  devices, err := checkpoint.GetComputeDeviceMap(podIDStr)
+  if err != nil {
+    return  &cmdArgs,errors.New("List of assigned devices could not be read from checkpoint file for Pod: " + podIDStr + " because:" + err.Error())
+  }
+  for k,v:= range devices {
+     log.Println(k,v);
+  }
   return &cmdArgs, nil
 }
 
