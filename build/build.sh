@@ -10,6 +10,7 @@ go get k8s.io/code-generator/cmd/deepcopy-gen
 go get k8s.io/code-generator/cmd/client-gen
 go get k8s.io/code-generator/cmd/lister-gen
 go get k8s.io/code-generator/cmd/informer-gen
+go get -d github.com/intel/multus-cni/checkpoint
 deepcopy-gen -v5 --alsologtostderr --input-dirs github.com/nokia/danm/pkg/crd/apis/danm/v1 -O zz_generated.deepcopy --bounding-dirs github.com/nokia/danm/pkg/crd/apis
 client-gen -v5 --alsologtostderr --clientset-name versioned --input-base "" --input github.com/nokia/danm/pkg/crd/apis/danm/v1 --clientset-path github.com/nokia/danm/pkg/crd/client/clientset
 lister-gen -v5 --alsologtostderr --input-dirs github.com/nokia/danm/pkg/crd/apis/danm/v1 --output-package github.com/nokia/danm/pkg/crd/client/listers

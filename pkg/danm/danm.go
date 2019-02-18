@@ -15,6 +15,7 @@ import (
   "github.com/containernetworking/cni/pkg/version"
   "github.com/containernetworking/cni/pkg/types/current"
   meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+  k8s "k8s.io/apimachinery/pkg/types"
   "k8s.io/client-go/rest"
   "k8s.io/client-go/tools/clientcmd"
   "k8s.io/client-go/kubernetes"
@@ -60,6 +61,7 @@ type cniArgs struct {
   labels map[string]string
   stdIn []byte
   interfaces []danmtypes.Interface
+  podUid k8s.UID
 }
 
 func createInterfaces(args *skel.CmdArgs) error {
@@ -136,18 +138,10 @@ func extractCniArgs(args *skel.CmdArgs) (*cniArgs,error) {
                      nil,
                      args.StdinData,
                      nil,
+                     "",
                     }
-  checkpoint, err := checkpoint.GetCheckpoint()
   if err != nil {
     return  &cmdArgs,errors.New("Kubelet checkpoint file could not be accessed because:" + err.Error())
-  }
-  podIDStr := "aaaaa"
-  devices, err := checkpoint.GetComputeDeviceMap(podIDStr)
-  if err != nil {
-    return  &cmdArgs,errors.New("List of assigned devices could not be read from checkpoint file for Pod: " + podIDStr + " because:" + err.Error())
-  }
-  for k,v:= range devices {
-     log.Println(k,v);
   }
   return &cmdArgs, nil
 }
@@ -167,6 +161,7 @@ func getPodAttributes(args *cniArgs) error {
   }
   args.annotation = pod.Annotations
   args.labels = pod.Labels
+  args.podUid = pod.UID
   return nil
 }
 
@@ -193,6 +188,22 @@ func extractConnections(args *cniArgs) error {
     ifaces = []danmtypes.Interface{{Network: defaultNetworkName}}
   }
   args.interfaces = ifaces
+
+  log.Println("About to call checkpoint in extractConnections")
+  checkpoint, err := checkpoint.GetCheckpoint()
+  if err != nil {
+    return  errors.New("Kubelet checkpoint file could not be accessed because:" + err.Error())
+  }
+  log.Println("before (GetComputeDeviceMap)args.podUid =",string(args.podUid) )
+  devices, err := checkpoint.GetComputeDeviceMap(string(args.podUid))
+  if err != nil {
+    return  errors.New("List of assigned devices could not be read from checkpoint file for Pod: " + string(args.podUid) + " because:" + err.Error())
+  }
+  log.Println( "after (GetComputeDeviceMap) devices: ",devices)
+  for k,v:= range devices {
+     log.Println(k,v);
+  }
+
   return nil
 }
 
