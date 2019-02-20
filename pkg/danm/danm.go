@@ -184,7 +184,6 @@ func extractConnections(args *cniArgs) error {
   if len(ifaces) == 0 {
     ifaces = []danmtypes.Interface{{Network: defaultNetworkName}}
   }
-  args.interfaces = ifaces
 
   log.Println("About to call checkpoint in extractConnections")
   checkpoint, err := checkpoint.GetCheckpoint()
@@ -197,15 +196,41 @@ func extractConnections(args *cniArgs) error {
     return  errors.New("List of assigned devices could not be read from checkpoint file for Pod: " + string(args.podUid) + " because:" + err.Error())
   }
   log.Println( "after (GetComputeDeviceMap) devices: ",devices)
-  registeredDevices:=[]string{}
-  for name,res:= range devices {
-    // TODO: Change prefix accordingly // petszila
-    if strings.HasPrefix(name,"nokia.k8s.io") {
-      registeredDevices = append(registeredDevices, res.DeviceIDs...)
-    }
+  danmClient, err := createDanmClient(args.stdIn)
+  if err != nil {
+    return errors.New("Unable to create DanmClient")
   }
-  log.Println(registeredDevices);
-
+  for id,intf := range ifaces {
+      danmnet, err := danmClient.DanmV1().DanmNets(args.nameSpace).Get(intf.Network, meta_v1.GetOptions{})
+      if err != nil || danmnet.ObjectMeta.Name == ""{
+           return errors.New("NID:" + intf.Network + " in namespace:" + args.nameSpace + " cannot be GET from K8s API server!")
+      }
+      if danmnet.Spec.NetworkType != "sriov" {
+           continue
+      }
+      for name,res:= range devices {
+         // TODO: Change prefix accordingly // petszila
+         if strings.HasPrefix(name,"nokia.k8s.io") && strings.HasSuffix(name,danmnet.Spec.NetworkID) {
+            log.Println(name,"TRUE",*res,intf.Network)
+            if res.Index >= 0 {
+               log.Println(id)
+               log.Println(res.DeviceIDs[res.Index])
+               //args.interfaces[id-1].Device=res.DeviceIDs[res.Index]
+               //log.Println(res.DeviceIDs[res.Index]+args.interfaces[id-1].Device)
+               res.Index--
+            } else {
+               log.Printf("Fatal error not enough device!")
+               return errors.New("Fatal error not enough device!")
+            }
+         }
+      }
+      for name,res:= range devices {
+         if res.Index >= 0 {
+           log.Printf("Warning too much device allocated!",name)
+         }
+      }
+  }
+  args.interfaces = ifaces
   return nil
 }
 
