@@ -30,10 +30,28 @@ type sriovNet struct {
   Ipam   danmtypes.IpamConfig `json:"ipam,omitEmpty"`
   // DPDK configuration
   Dpdk   *DpdkOption `json:"dpdk,omitEmpty"`
+  // Device PCI ID
+  DeviceID string `json:"deviceID"`
+  // Device Info
+  DeviceInfo *VfInformation `json:"deviceinfo,omitempty"`
 }
+
+// VfInformation is a DeviceIfo desctiprtor expected by sriov plugin v1.0.0
+type VfInformation struct {
+  PCIaddr string `json:"pci_addr"`
+  Pfname  string `json:"pfname"`
+  Vfid    int    `json:"vfid"`
+}
+
 
 // DpdkOption represents the DPDK options for the sriov plugin
 type DpdkOption struct {
+  // The VFID of the sriov device
+  VFID int `json:"vfid"`
+  // The PCI address of sriov device
+  PCIaddr string `json:"pci_addr"`
+  // The name of the interface
+  Ifname string `json:"ifname"`
   // The name of kernel NIC driver
   NicDriver  string `json:"kernel_driver"`
   // The name of DPDK capable driver

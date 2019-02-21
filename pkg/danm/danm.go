@@ -75,9 +75,16 @@ func createInterfaces(args *skel.CmdArgs) error {
     log.Println("ERROR: ADD: Pod manifest could not be parsed with error:" + err.Error())
     return fmt.Errorf("Pod manifest could not be parsed with error: %v", err)
   }
-  extractConnections(cniArgs)
+  if err=extractConnections(cniArgs); err != nil {
+    log.Println("ERROR: extractConnections:" + err.Error())
+    return fmt.Errorf("CNI network could not be set up: %v", err)
+  }
   if len(cniArgs.interfaces) == 1 && cniArgs.interfaces[0].Network == defaultNetworkName {
     log.Println("WARN: ADD: no network connections for Pod: " + cniArgs.podId + " are defined in spec.metadata.annotation. Falling back to use: " + defaultNetworkName)
+  }
+  if err := setupSRIOV(cniArgs); err != nil {
+    log.Println("ERROR: SRIOV interface setup failed with error:" + err.Error())
+    return fmt.Errorf("CNI network could not be set up: %v", err)
   }
   cniResult, err := setupNetworking(cniArgs)
   if err != nil {
@@ -184,23 +191,27 @@ func extractConnections(args *cniArgs) error {
   if len(ifaces) == 0 {
     ifaces = []danmtypes.Interface{{Network: defaultNetworkName}}
   }
+  args.interfaces = ifaces
 
-  log.Println("About to call checkpoint in extractConnections")
+  return nil
+}
+
+func setupSRIOV(args *cniArgs) error {
+  //HZ
+  //log.Println("About to call checkpoint in setupSRIOV")
   checkpoint, err := checkpoint.GetCheckpoint()
   if err != nil {
     return  errors.New("Kubelet checkpoint file could not be accessed because:" + err.Error())
   }
-  log.Println("before (GetComputeDeviceMap)args.podUid =",string(args.podUid) )
   devices, err := checkpoint.GetComputeDeviceMap(string(args.podUid))
   if err != nil {
     return  errors.New("List of assigned devices could not be read from checkpoint file for Pod: " + string(args.podUid) + " because:" + err.Error())
   }
-  log.Println( "after (GetComputeDeviceMap) devices: ",devices)
   danmClient, err := createDanmClient(args.stdIn)
   if err != nil {
     return errors.New("Unable to create DanmClient")
   }
-  for id,intf := range ifaces {
+  for id,intf := range args.interfaces {
       danmnet, err := danmClient.DanmV1().DanmNets(args.nameSpace).Get(intf.Network, meta_v1.GetOptions{})
       if err != nil || danmnet.ObjectMeta.Name == ""{
            return errors.New("NID:" + intf.Network + " in namespace:" + args.nameSpace + " cannot be GET from K8s API server!")
@@ -208,29 +219,32 @@ func extractConnections(args *cniArgs) error {
       if danmnet.Spec.NetworkType != "sriov" {
            continue
       }
+      found:=false
       for name,res:= range devices {
          // TODO: Change prefix accordingly // petszila
          if strings.HasPrefix(name,"nokia.k8s.io") && strings.HasSuffix(name,danmnet.Spec.NetworkID) {
-            log.Println(name,"TRUE",*res,intf.Network)
-            if res.Index >= 0 {
-               log.Println(id)
-               log.Println(res.DeviceIDs[res.Index])
-               //args.interfaces[id-1].Device=res.DeviceIDs[res.Index]
-               //log.Println(res.DeviceIDs[res.Index]+args.interfaces[id-1].Device)
-               res.Index--
+            //log.Println(name,"TRUE",*res,intf.Network)
+            if res.Index < len(res.DeviceIDs) {
+               args.interfaces[id].Device=res.DeviceIDs[res.Index]
+               log.Println(args.interfaces[id].Device)
+               found=true
+               res.Index++
             } else {
-               log.Printf("Fatal error not enough device!")
-               return errors.New("Fatal error not enough device!")
+               log.Printf("Fatal error not enough sriov dp allocated device!")
+               return errors.New("Fatal error not enough sriov dp allocated device!")
             }
          }
       }
-      for name,res:= range devices {
-         if res.Index >= 0 {
-           log.Printf("Warning too much device allocated!",name)
-         }
+      if !found {
+         log.Printf("Fatal error no sriov dp allocated device!")
+         return errors.New("Fatal error no sriov dp allocated device!")
       }
   }
-  args.interfaces = ifaces
+  for name,res:= range devices {
+      if res.Index < len(res.DeviceIDs) {
+          log.Println("Warning: sriov dp devices allocated but not used:"+name)
+      }
+  }
   return nil
 }
 
@@ -257,6 +271,9 @@ func createInterface(syncher *syncher.Syncher, iface danmtypes.Interface, args *
   }
   var cniRes *current.Result
   if isDelegationRequired {
+    //HZ
+    //log.Println("CreateInterface :"+iface.Network+":"+iface.DefaultIfaceName)
+    //log.Println("createInterface",args.interfaces)
     cniRes, err = createDelegatedInterface(danmClient, iface, netInfo, args)
     if err != nil {
       syncher.PushResult(iface.Network, err, nil)
@@ -279,11 +296,15 @@ func createDelegatedInterface(danmClient danmclientset.Interface, iface danmtype
     AddressIPv6: iface.Ip6,
     Proutes:     iface.Proutes,
     Proutes6:    iface.Proutes6,
+    VfDeviceID:  iface.Device,
   }
   ep, err := createDanmEp(epIfaceSpec, netInfo.Spec.NetworkID, netInfo.Spec.NetworkType, args)
   if err != nil {
     return nil, errors.New("DanmEp object could not be created due to error:" + err.Error())
   }
+  //HZ
+  //log.Println("302: createDelegatedInterface",epIfaceSpec)
+  //log.Println("*createDanmEp",iface.Device)
   delegatedResult,err := cnidel.DelegateInterfaceSetup(danmClient, netInfo, &ep)
   if err != nil {
     return nil, err

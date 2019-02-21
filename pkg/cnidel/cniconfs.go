@@ -53,12 +53,16 @@ func getSriovCniConfig(netInfo *danmtypes.DanmNet, ipamOptions danmtypes.IpamCon
     Vlan:   vlanid,
     Dpdk:   nil,
     Ipam:   ipamOptions,
+    DeviceID:  ep.Spec.Iface.VfDeviceID,
   }
   if ipamOptions.Ip != "" {
     sriovConfig.L2Mode = false
   }
   if netInfo.Spec.Options.Dpdk {
     sriovConfig.Dpdk = &DpdkOption {
+      VFID:       0,
+      PCIaddr:    "",
+      Ifname:     "",
       NicDriver: dpdkNicDriver,
       DpdkDriver: dpdkDriver,
       DpdkTool: dpdkTool,

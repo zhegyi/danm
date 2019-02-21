@@ -97,6 +97,7 @@ type DanmEpIface struct {
   MacAddress  string            `json:"MacAddress"`
   Proutes     map[string]string `json:"proutes"`
   Proutes6    map[string]string `json:"proutes6"`
+  VfDeviceID  string            `json:"VfDeviceID,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

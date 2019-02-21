@@ -227,13 +227,14 @@ func getEnv(key, fallback string) string {
   }
   return fallback
 }
-
 // CalculateIfaceName decides what should be the name of a container's interface.
 // If a name is explicitly set in the related DanmNet API object, the NIC will be named accordingly.
 // If a name is not explicitly set, then DANM will name the interface ethX where X=sequence number of the interface
 func CalculateIfaceName(chosenName, defaultName string) string {
+
+  
   if chosenName != "" {
-    return chosenName
+     return chosenName+strings.TrimPrefix(defaultName,"eth")
   }
   return defaultName 
 }
